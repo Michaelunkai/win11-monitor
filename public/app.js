@@ -232,7 +232,7 @@ function updateProcesses(processes) {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${proc.name}</td>
-            <td>${proc.cpu.toFixed(2)}</td>
+            <td>${proc.cpu.toFixed(2)}%</td>
             <td>${proc.memory.toFixed(2)}</td>
             <td>${proc.pid}</td>
         `;

@@ -75,7 +75,7 @@ function Get-SystemDiagnostics {
         $diagnostics.summary.low++
     }
 
-    # 2. Driver Problems Detection
+    # 2. Driver Problems Detection with DETAILED information
     try {
         # Get devices with problems (Status != OK)
         $problemDevices = Get-CimInstance Win32_PnPEntity | Where-Object {
@@ -85,46 +85,68 @@ function Get-SystemDiagnostics {
         foreach ($device in $problemDevices) {
             $errorDescription = switch ($device.ConfigManagerErrorCode) {
                 1 { "Device not configured correctly" }
-                3 { "Driver is corrupted" }
-                10 { "Device cannot start" }
-                12 { "Cannot find enough free resources" }
+                3 { "Driver is corrupted or incompatible" }
+                10 { "Device cannot start - driver issue" }
+                12 { "Cannot find enough free resources for device" }
                 18 { "Reinstall drivers for this device" }
-                19 { "Registry might be corrupted" }
+                19 { "Windows registry might be corrupted" }
                 21 { "Device is being removed" }
-                22 { "Device is disabled" }
-                28 { "Drivers not installed" }
-                29 { "Device is disabled in firmware" }
-                31 { "Device not working properly" }
+                22 { "Device is disabled by user" }
+                28 { "Drivers are not installed for this device" }
+                29 { "Device is disabled in BIOS/UEFI firmware" }
+                31 { "Device not working properly - driver error" }
                 32 { "Start type for this driver is disabled" }
                 33 { "Cannot determine which resources are required" }
                 34 { "Cannot determine settings automatically" }
                 35 { "Computer's firmware does not include enough information" }
                 36 { "Device requesting PCI interrupt but configured for ISA" }
                 37 { "Failed to configure device" }
-                38 { "Failed to load driver" }
+                38 { "Failed to load driver - driver file missing or corrupt" }
                 39 { "Driver entry point not found" }
-                40 { "Driver failed to load" }
+                40 { "Driver failed to load - incompatible or corrupted" }
                 41 { "Driver failed due to missing duplicate device" }
-                42 { "System failure (Try changing the driver)" }
+                42 { "System failure - driver incompatible with Windows version" }
                 43 { "VxD loader failure" }
-                44 { "The device software is blocked from starting" }
+                44 { "The device software is blocked from starting by Group Policy" }
                 45 { "Device is not connected to computer" }
-                46 { "Cannot access device (device preparing to be removed)" }
+                46 { "Cannot access device (preparing to be removed)" }
                 47 { "Device is prepared for removal" }
                 48 { "Software for this device has been blocked from starting" }
-                49 { "Registry is too large" }
-                default { "Error code: $($device.ConfigManagerErrorCode)" }
+                49 { "Registry is too large - cleanup required" }
+                default { "Unknown error code: $($device.ConfigManagerErrorCode)" }
+            }
+
+            # Get driver details
+            $driverInfo = ""
+            try {
+                $driver = Get-CimInstance Win32_PnPSignedDriver | Where-Object { $_.DeviceID -eq $device.DeviceID }
+                if ($driver) {
+                    $driverInfo = "Driver: $($driver.DriverName) v$($driver.DriverVersion), Manufacturer: $($driver.Manufacturer)"
+                }
+            } catch {}
+
+            # Detailed recommendation based on error code
+            $fixRecommendation = switch ($device.ConfigManagerErrorCode) {
+                3 { "1. Open Device Manager → 2. Right-click device → 3. Update Driver → 4. If fails, Uninstall Device → 5. Scan for hardware changes" }
+                10 { "1. Open Device Manager → 2. Right-click '$($device.Name)' → 3. Update Driver → 4. Download latest driver from manufacturer's website" }
+                22 { "1. Open Device Manager → 2. Find '$($device.Name)' → 3. Right-click → 4. Enable Device" }
+                28 { "1. Download driver from manufacturer → 2. Open Device Manager → 3. Right-click device → 4. Update Driver → 5. Browse to downloaded driver" }
+                29 { "1. Restart computer → 2. Enter BIOS/UEFI (press Del/F2 during startup) → 3. Find and enable this device → 4. Save and exit" }
+                38 { "Driver file corrupt or missing. 1. Download fresh driver from manufacturer → 2. Uninstall device → 3. Install new driver" }
+                40 { "1. Check Windows version compatibility → 2. Download compatible driver → 3. Run as Administrator to install" }
+                default { "1. Open Device Manager (Win+X → Device Manager) → 2. Locate '$($device.Name)' → 3. Right-click → Update Driver or Uninstall Device → 4. Restart computer" }
             }
 
             $diagnostics.issues += @{
                 category = "Driver"
                 severity = if ($device.ConfigManagerErrorCode -in @(3,10,28,38,40)) { "High" } elseif ($device.ConfigManagerErrorCode -eq 22) { "Low" } else { "Medium" }
-                title = "Device Driver Problem: $($device.Name)"
-                description = $errorDescription
-                recommendation = "Update or reinstall the device driver from Device Manager"
+                title = "Driver Error Code $($device.ConfigManagerErrorCode): $($device.Name)"
+                description = "$errorDescription | $driverInfo | Hardware ID: $($device.DeviceID)"
+                recommendation = $fixRecommendation
                 deviceName = $device.Name
                 deviceId = $device.DeviceID
                 errorCode = $device.ConfigManagerErrorCode
+                driverDetails = $driverInfo
                 timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
             }
 

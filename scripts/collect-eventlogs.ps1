@@ -49,14 +49,19 @@ function Get-RecentEvents {
         4202   # Network adapter disconnected
     )
 
-    # System Events (Critical and Errors with priority to known issues)
+    # System Events (ONLY Critical and Errors - NO WARNINGS unless actionable)
     try {
         $systemEvents = Get-WinEvent -FilterHashtable @{
             LogName = 'System'
-            Level = 1,2,3
+            Level = 1,2  # ONLY Critical and Error - removed warnings
         } -MaxEvents ($MaxEvents * 2) -ErrorAction SilentlyContinue
 
         foreach ($event in $systemEvents) {
+            # Skip success messages and informational events
+            if ($event.Message -match "success|successfully|completed|started|stopped normally|running") {
+                continue
+            }
+
             # Categorize event
             $category = "System"
             $priority = "Normal"
@@ -65,26 +70,44 @@ function Get-RecentEvents {
                 $priority = "High"
             }
 
-            # Enhanced event categorization
+            # Enhanced event categorization with MORE DETAILS
+            $detailedInfo = ""
+
             if ($event.ProviderName -like "*Disk*") {
                 $category = "Disk"
                 $priority = "High"
+                # Extract disk/device name if available
+                if ($event.Message -match "device (\\Device\\[^\s]+)") {
+                    $detailedInfo = "Device: $($matches[1])"
+                }
             } elseif ($event.ProviderName -like "*Ntfs*" -or $event.ProviderName -like "*Storage*") {
                 $category = "Storage"
+                $priority = "High"
             } elseif ($event.ProviderName -eq "Service Control Manager") {
                 $category = "Service"
+                $priority = "High"
+                # Extract service name
+                if ($event.Message -match "The ([^\s]+) service") {
+                    $detailedInfo = "Service: $($matches[1])"
+                }
             } elseif ($event.ProviderName -like "*Tcpip*" -or $event.ProviderName -like "*Network*") {
                 $category = "Network"
+                $priority = "High"
             } elseif ($event.ProviderName -eq "Microsoft-Windows-WindowsUpdateClient") {
                 $category = "WindowsUpdate"
                 $priority = "High"
             } elseif ($event.ProviderName -like "*Driver*") {
                 $category = "Driver"
                 $priority = "High"
+                # Extract driver details
+                if ($event.Message -match "driver ([^\s]+)") {
+                    $detailedInfo = "Driver: $($matches[1])"
+                }
             }
 
+            # Get FULL message with details
             $messageText = if ($event.Message) {
-                $event.Message.Substring(0, [Math]::Min(300, $event.Message.Length))
+                $event.Message.Substring(0, [Math]::Min(500, $event.Message.Length))
             } else {
                 "No message available"
             }
@@ -95,14 +118,13 @@ function Get-RecentEvents {
                 level = switch ($event.Level) {
                     1 { "Critical" }
                     2 { "Error" }
-                    3 { "Warning" }
-                    4 { "Information" }
                     default { "Unknown" }
                 }
                 priority = $priority
                 id = $event.Id
                 provider = $event.ProviderName
                 message = $messageText
+                details = $detailedInfo
                 timestamp = $event.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss")
                 timeAgo = (New-TimeSpan -Start $event.TimeCreated -End (Get-Date)).TotalHours
             }
@@ -111,18 +133,23 @@ function Get-RecentEvents {
         Write-Error "Failed to collect system events: $_"
     }
 
-    # Application Events (Focus on crashes and errors)
+    # Application Events (ONLY crashes and errors - NO success messages)
     try {
         $appEvents = Get-WinEvent -FilterHashtable @{
             LogName = 'Application'
-            Level = 1,2,3
+            Level = 1,2  # ONLY Critical and Error
         } -MaxEvents ($MaxEvents * 2) -ErrorAction SilentlyContinue
 
         foreach ($event in $appEvents) {
+            # Skip success messages
+            if ($event.Message -match "success|successfully|completed|started|running") {
+                continue
+            }
+
             $category = "Application"
             $priority = "Normal"
 
-            # Prioritize application crashes
+            # Prioritize application crashes with DETAILS
             if ($event.Id -in @(1000, 1001, 1002)) {
                 $priority = "High"
                 $category = "AppCrash"
@@ -130,16 +157,30 @@ function Get-RecentEvents {
                 $priority = "High"
             }
 
+            # Get FULL message with crash details
             $messageText = if ($event.Message) {
-                $event.Message.Substring(0, [Math]::Min(300, $event.Message.Length))
+                $event.Message  # Full message for crash details
             } else {
                 "No message available"
             }
 
-            # Extract application name from crash events
+            # Extract application name and fault module
             $appName = ""
-            if ($event.Id -in @(1000, 1001, 1002) -and $event.Message -match "Application Name:\s*(\S+)") {
+            $faultModule = ""
+            $errorCode = ""
+
+            if ($event.Message -match "Faulting application name:\s*([^,]+)") {
+                $appName = $matches[1].Trim()
+            } elseif ($event.Message -match "Application Name:\s*(\S+)") {
                 $appName = $matches[1]
+            }
+
+            if ($event.Message -match "Faulting module name:\s*([^,]+)") {
+                $faultModule = $matches[1].Trim()
+            }
+
+            if ($event.Message -match "Exception code:\s*(0x[0-9a-fA-F]+)") {
+                $errorCode = $matches[1]
             }
 
             $events += @{
@@ -148,8 +189,6 @@ function Get-RecentEvents {
                 level = switch ($event.Level) {
                     1 { "Critical" }
                     2 { "Error" }
-                    3 { "Warning" }
-                    4 { "Information" }
                     default { "Unknown" }
                 }
                 priority = $priority
@@ -157,6 +196,8 @@ function Get-RecentEvents {
                 provider = $event.ProviderName
                 message = $messageText
                 appName = $appName
+                faultModule = $faultModule
+                errorCode = $errorCode
                 timestamp = $event.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss")
                 timeAgo = (New-TimeSpan -Start $event.TimeCreated -End (Get-Date)).TotalHours
             }
@@ -165,16 +206,28 @@ function Get-RecentEvents {
         Write-Error "Failed to collect application events: $_"
     }
 
-    # Security Events (Failed logins, policy changes)
+    # Security Events (ONLY actual security problems - failed logins, lockouts)
     try {
         $securityEvents = Get-WinEvent -FilterHashtable @{
             LogName = 'Security'
-            Id = 4625,4740,4771  # Failed logon attempts, account lockouts
+            Id = 4625,4740,4771,4776  # Failed logon, lockouts, Kerberos failures
         } -MaxEvents 20 -ErrorAction SilentlyContinue
 
         foreach ($event in $securityEvents) {
+            # Extract account name and failure reason
+            $accountName = ""
+            $failureReason = ""
+
+            if ($event.Message -match "Account Name:\s*([^\r\n]+)") {
+                $accountName = $matches[1].Trim()
+            }
+
+            if ($event.Message -match "Failure Reason:\s*([^\r\n]+)") {
+                $failureReason = $matches[1].Trim()
+            }
+
             $messageText = if ($event.Message) {
-                $event.Message.Substring(0, [Math]::Min(300, $event.Message.Length))
+                $event.Message
             } else {
                 "Security event detected"
             }
@@ -182,11 +235,13 @@ function Get-RecentEvents {
             $events += @{
                 source = "Security"
                 category = "Security"
-                level = "Warning"
+                level = "Error"
                 priority = "High"
                 id = $event.Id
                 provider = $event.ProviderName
                 message = $messageText
+                accountName = $accountName
+                failureReason = $failureReason
                 timestamp = $event.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss")
                 timeAgo = (New-TimeSpan -Start $event.TimeCreated -End (Get-Date)).TotalHours
             }
