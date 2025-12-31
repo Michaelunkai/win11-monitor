@@ -4,6 +4,8 @@ A real-time web-based monitoring dashboard for Windows 11 systems with live metr
 
 ## 🚀 Live Demo & Deployment
 
+**🌐 Live Demo:** [https://win11-monitor.onrender.com](https://win11-monitor.onrender.com/)
+
 **Try it now:** Deploy your own instance in 2 minutes - 100% FREE forever!
 
 ### One-Click Deploy (FREE Forever)
