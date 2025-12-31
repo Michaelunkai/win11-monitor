@@ -92,6 +92,30 @@
             </div>
         </div>
 
+        <!-- System Diagnostics Section -->
+        <div class="section-card">
+            <h2>🔍 System Health & Diagnostics</h2>
+            <div class="diagnostics-summary" id="diagnosticsSummary">
+                <div class="summary-item critical">
+                    <span class="summary-label">Critical</span>
+                    <span class="summary-count" id="criticalCount">0</span>
+                </div>
+                <div class="summary-item high">
+                    <span class="summary-label">High</span>
+                    <span class="summary-count" id="highCount">0</span>
+                </div>
+                <div class="summary-item medium">
+                    <span class="summary-label">Medium</span>
+                    <span class="summary-count" id="mediumCount">0</span>
+                </div>
+                <div class="summary-item low">
+                    <span class="summary-label">Low</span>
+                    <span class="summary-count" id="lowCount">0</span>
+                </div>
+            </div>
+            <div id="diagnosticsIssues" class="diagnostics-list"></div>
+        </div>
+
         <!-- Event Logs Section -->
         <div class="section-card">
             <h2>📝 Recent Event Logs</h2>
@@ -106,7 +130,7 @@
 
         <footer>
             <p>Last updated: <span id="lastUpdate">--</span></p>
-            <p>Refresh rate: 3 seconds (metrics) | 10 seconds (logs)</p>
+            <p>Refresh rate: 3s (metrics) | 10s (logs) | 30s (diagnostics)</p>
         </footer>
     </div>
 
