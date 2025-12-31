@@ -24,89 +24,14 @@ const MAX_HISTORY = 100;
 const isWindows = process.platform === 'win32';
 const DEMO_MODE = !isWindows;
 
-// Demo data generators
-function generateDemoMetrics() {
-    const cpuBase = 30 + Math.random() * 40;
-    const memoryBase = 50 + Math.random() * 30;
-
+// DEMO MODE - Returns message that real Windows is needed
+function generateDemoMessage() {
     return {
-        cpu: parseFloat(cpuBase.toFixed(2)),
-        memory: {
-            total: 16.0,
-            used: parseFloat((16 * memoryBase / 100).toFixed(2)),
-            free: parseFloat((16 * (100 - memoryBase) / 100).toFixed(2)),
-            percent: parseFloat(memoryBase.toFixed(2))
-        },
-        disks: [
-            {
-                drive: 'C:',
-                total: 475.9,
-                used: parseFloat((475.9 * (60 + Math.random() * 20) / 100).toFixed(2)),
-                free: parseFloat((475.9 * (40 - Math.random() * 20) / 100).toFixed(2)),
-                percent: parseFloat((60 + Math.random() * 20).toFixed(2))
-            },
-            {
-                drive: 'D:',
-                total: 931.5,
-                used: parseFloat((931.5 * (40 + Math.random() * 30) / 100).toFixed(2)),
-                free: parseFloat((931.5 * (60 - Math.random() * 30) / 100).toFixed(2)),
-                percent: parseFloat((40 + Math.random() * 30).toFixed(2))
-            }
-        ],
-        network: [
-            {
-                name: 'Ethernet',
-                receivedMB: parseFloat((Math.random() * 1000).toFixed(2)),
-                sentMB: parseFloat((Math.random() * 500).toFixed(2))
-            },
-            {
-                name: 'Wi-Fi',
-                receivedMB: parseFloat((Math.random() * 2000).toFixed(2)),
-                sentMB: parseFloat((Math.random() * 800).toFixed(2))
-            }
-        ],
-        processes: [
-            { name: 'System', cpu: parseFloat((5 + Math.random() * 10).toFixed(2)), memory: parseFloat((200 + Math.random() * 100).toFixed(2)), pid: 4 },
-            { name: 'chrome.exe', cpu: parseFloat((10 + Math.random() * 20).toFixed(2)), memory: parseFloat((500 + Math.random() * 300).toFixed(2)), pid: 1234 },
-            { name: 'node.exe', cpu: parseFloat((5 + Math.random() * 15).toFixed(2)), memory: parseFloat((150 + Math.random() * 100).toFixed(2)), pid: 5678 },
-            { name: 'explorer.exe', cpu: parseFloat((2 + Math.random() * 8).toFixed(2)), memory: parseFloat((100 + Math.random() * 50).toFixed(2)), pid: 9012 },
-            { name: 'vscode.exe', cpu: parseFloat((8 + Math.random() * 12).toFixed(2)), memory: parseFloat((300 + Math.random() * 200).toFixed(2)), pid: 3456 }
-        ],
-        uptime: {
-            days: 5,
-            hours: 12,
-            minutes: 34
-        }
+        error: "DEMO MODE - Real Windows 11 Required",
+        message: "This monitoring tool requires Windows 11 to collect real system data. Currently running on " + process.platform,
+        instructions: "To see real data from your Windows 11 laptop, run this application on Windows with: npm start",
+        demoMode: true
     };
-}
-
-function generateDemoEventLogs() {
-    const eventTypes = ['Critical', 'Error', 'Warning'];
-    const sources = ['System', 'Application'];
-    const messages = [
-        'The system has rebooted without cleanly shutting down first',
-        'Application error: Failed to initialize component',
-        'Disk quota threshold exceeded on volume C:',
-        'Windows Update service terminated unexpectedly',
-        'Network adapter driver encountered an error',
-        'Security policy was applied successfully',
-        'Service entered the running state',
-        'User authentication completed successfully'
-    ];
-
-    const events = [];
-    for (let i = 0; i < 15; i++) {
-        const date = new Date(Date.now() - i * 3600000);
-        events.push({
-            source: sources[Math.floor(Math.random() * sources.length)],
-            level: eventTypes[Math.floor(Math.random() * eventTypes.length)],
-            id: 1000 + Math.floor(Math.random() * 9000),
-            message: messages[Math.floor(Math.random() * messages.length)],
-            timestamp: date.toISOString()
-        });
-    }
-
-    return { events };
 }
 
 // Helper function to execute PowerShell scripts
@@ -143,24 +68,10 @@ function executePowerShellScript(scriptPath) {
     });
 }
 
-// Collect system metrics
+// Collect system metrics - REAL DATA ONLY
 async function collectMetrics() {
     if (DEMO_MODE) {
-        currentMetrics = generateDemoMetrics();
-
-        // Add to history
-        metricsHistory.push({
-            timestamp: new Date().toISOString(),
-            cpu: currentMetrics.cpu || 0,
-            memory: currentMetrics.memory ? currentMetrics.memory.percent : 0
-        });
-
-        // Keep only recent history
-        if (metricsHistory.length > MAX_HISTORY) {
-            metricsHistory.shift();
-        }
-
-        return currentMetrics;
+        return generateDemoMessage();
     }
 
     try {
@@ -188,12 +99,10 @@ async function collectMetrics() {
     }
 }
 
-// Collect event logs
+// Collect event logs - REAL ERRORS ONLY
 async function collectEventLogs() {
     if (DEMO_MODE) {
-        const data = generateDemoEventLogs();
-        eventLogs = data.events || [];
-        return data;
+        return { events: [], message: "Run on Windows 11 to see real error logs" };
     }
 
     try {
@@ -209,27 +118,20 @@ async function collectEventLogs() {
     }
 }
 
-// Collect system diagnostics
+// Collect system diagnostics - REAL PROBLEMS ONLY
 async function collectDiagnostics() {
     if (DEMO_MODE) {
-        // Demo diagnostics data
-        systemDiagnostics = {
-            issues: [
-                {
-                    category: "WindowsUpdate",
-                    severity: "Medium",
-                    title: "Pending Windows Updates",
-                    description: "3 update(s) are pending installation",
-                    recommendation: "Install pending updates to ensure system security and stability",
-                    timestamp: new Date().toISOString()
-                }
-            ],
+        return {
+            issues: [],
             warnings: [],
-            summary: { critical: 0, high: 0, medium: 1, low: 0 },
-            totalIssues: 1,
+            info: [{
+                message: "This monitoring tool requires Windows 11",
+                details: "Currently running on " + process.platform + ". To see real diagnostics (Windows Updates, Driver errors, Disk problems, etc.), run this on your Windows 11 laptop."
+            }],
+            summary: { critical: 0, high: 0, medium: 0, low: 0 },
+            totalIssues: 0,
             timestamp: new Date().toISOString()
         };
-        return systemDiagnostics;
     }
 
     try {
