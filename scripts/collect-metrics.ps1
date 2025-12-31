@@ -53,17 +53,27 @@ function Get-SystemMetrics {
         percent = $memoryPercent
     }
 
-    # Disk Usage with health status
+    # Disk Usage - Monitors ALL drives (C:, D:, F:, etc.) - whatever exists on your system
+    # DriveType=3 means all fixed hard drives
     $disks = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" | Select-Object DeviceID,
         @{Name="TotalGB";Expression={[Math]::Round($_.Size / 1GB, 2)}},
         @{Name="FreeGB";Expression={[Math]::Round($_.FreeSpace / 1GB, 2)}},
         @{Name="UsedGB";Expression={[Math]::Round(($_.Size - $_.FreeSpace) / 1GB, 2)}},
         @{Name="PercentUsed";Expression={if ($_.Size -gt 0) { [Math]::Round((($_.Size - $_.FreeSpace) / $_.Size) * 100, 2) } else { 0 }}},
-        VolumeName
+        VolumeName,
+        FileSystem
 
     $metrics.disks = @($disks | ForEach-Object {
+        # Get disk performance metrics
         $diskPerf = Get-Counter "\LogicalDisk($($_.DeviceID -replace ':',''))\% Disk Time" -ErrorAction SilentlyContinue
         $diskActivity = if ($diskPerf) { [Math]::Round($diskPerf.CounterSamples[0].CookedValue, 2) } else { 0 }
+
+        # Get disk read/write stats
+        $diskReadBytes = Get-Counter "\LogicalDisk($($_.DeviceID -replace ':',''))\Disk Read Bytes/sec" -ErrorAction SilentlyContinue
+        $diskWriteBytes = Get-Counter "\LogicalDisk($($_.DeviceID -replace ':',''))\Disk Write Bytes/sec" -ErrorAction SilentlyContinue
+
+        $readMBps = if ($diskReadBytes) { [Math]::Round($diskReadBytes.CounterSamples[0].CookedValue / 1MB, 2) } else { 0 }
+        $writeMBps = if ($diskWriteBytes) { [Math]::Round($diskWriteBytes.CounterSamples[0].CookedValue / 1MB, 2) } else { 0 }
 
         @{
             drive = $_.DeviceID
@@ -73,6 +83,9 @@ function Get-SystemMetrics {
             free = $_.FreeGB
             percent = $_.PercentUsed
             activity = $diskActivity
+            readMBps = $readMBps
+            writeMBps = $writeMBps
+            fileSystem = $_.FileSystem
         }
     })
 

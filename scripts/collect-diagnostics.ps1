@@ -168,60 +168,214 @@ function Get-SystemDiagnostics {
         }
     }
 
-    # 3. Network Connectivity Issues
+    # 3. COMPREHENSIVE Network Diagnostics - Find EVERY network problem
     try {
-        # Check network adapters
-        $networkAdapters = Get-NetAdapter
-        $downAdapters = $networkAdapters | Where-Object { $_.Status -eq 'Disabled' -or $_.Status -eq 'Disconnected' }
+        # Check ALL network adapters (not just disconnected ones)
+        $allNetworkAdapters = Get-NetAdapter -ErrorAction SilentlyContinue
 
-        foreach ($adapter in $downAdapters) {
-            if ($adapter.Status -eq 'Disconnected') {
+        foreach ($adapter in $allNetworkAdapters) {
+            # Check disabled adapters
+            if ($adapter.Status -eq 'Disabled') {
                 $diagnostics.warnings += @{
+                    category = "Network"
+                    severity = "Low"
+                    title = "Network Adapter Disabled: $($adapter.Name)"
+                    description = "Adapter '$($adapter.InterfaceDescription)' is manually disabled"
+                    recommendation = "Enable in Network Connections: 1. Win+R → ncpa.cpl → 2. Right-click '$($adapter.Name)' → 3. Enable"
+                    adapterName = $adapter.Name
+                    adapterDescription = $adapter.InterfaceDescription
+                    status = $adapter.Status
+                    timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                }
+                $diagnostics.summary.low++
+            }
+
+            # Check disconnected adapters (cable unplugged or no WiFi)
+            if ($adapter.Status -eq 'Disconnected' -or $adapter.Status -eq 'Not Present') {
+                $diagnostics.issues += @{
                     category = "Network"
                     severity = "Medium"
                     title = "Network Adapter Disconnected: $($adapter.Name)"
-                    description = "Network adapter '$($adapter.InterfaceDescription)' is disconnected"
-                    recommendation = "Check cable connection or wireless signal"
+                    description = "Status: $($adapter.Status) | Interface: $($adapter.InterfaceDescription) | Media Type: $($adapter.MediaType)"
+                    recommendation = if ($adapter.MediaType -match "802.11") {
+                        "WiFi not connected. 1. Click WiFi icon in taskbar → 2. Select network → 3. Enter password"
+                    } else {
+                        "Ethernet cable unplugged. 1. Check cable connection → 2. Try different cable → 3. Check router port"
+                    }
+                    adapterName = $adapter.Name
+                    mediaType = $adapter.MediaType
                     timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
                 }
                 $diagnostics.summary.medium++
             }
+
+            # Check for adapter errors
+            if ($adapter.Status -eq 'Up') {
+                $adapterStats = Get-NetAdapterStatistics -Name $adapter.Name -ErrorAction SilentlyContinue
+                if ($adapterStats) {
+                    # Check for errors
+                    if ($adapterStats.ReceivedUnicastPackets -gt 0) {
+                        $errorRate = ($adapterStats.ReceivedPacketErrors / $adapterStats.ReceivedUnicastPackets) * 100
+                        if ($errorRate -gt 5) {
+                            $diagnostics.issues += @{
+                                category = "Network"
+                                severity = "High"
+                                title = "High Network Error Rate: $($adapter.Name)"
+                                description = "Packet error rate: $([Math]::Round($errorRate, 2))% | Errors: $($adapterStats.ReceivedPacketErrors) | Total: $($adapterStats.ReceivedUnicastPackets)"
+                                recommendation = "1. Check network cable quality → 2. Update network adapter driver → 3. Check router/switch for problems"
+                                timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                            }
+                            $diagnostics.summary.high++
+                        }
+                    }
+                }
+            }
         }
 
-        # Test internet connectivity
-        $internetTest = Test-NetConnection -ComputerName "8.8.8.8" -InformationLevel Quiet -WarningAction SilentlyContinue
+        # Check IP Configuration Issues
+        $ipConfigs = Get-NetIPConfiguration -ErrorAction SilentlyContinue
+        foreach ($config in $ipConfigs) {
+            if ($config.NetAdapter.Status -eq 'Up') {
+                # Check for APIPA address (169.254.x.x means DHCP failed)
+                $ipv4 = $config.IPv4Address.IPAddress
+                if ($ipv4 -match "^169\.254\.") {
+                    $diagnostics.issues += @{
+                        category = "Network"
+                        severity = "High"
+                        title = "DHCP Failure - APIPA Address: $($config.InterfaceAlias)"
+                        description = "IP Address: $ipv4 (Auto-assigned, not from DHCP server) | This means the computer cannot get an IP from the router"
+                        recommendation = "1. Check router is on and working → 2. Restart router → 3. Run: ipconfig /release then ipconfig /renew → 4. Check router DHCP settings"
+                        ipAddress = $ipv4
+                        interfaceName = $config.InterfaceAlias
+                        timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                    }
+                    $diagnostics.summary.high++
+                }
+
+                # Check for no default gateway (means can't reach internet)
+                if (-not $config.IPv4DefaultGateway) {
+                    $diagnostics.issues += @{
+                        category = "Network"
+                        severity = "High"
+                        title = "No Default Gateway: $($config.InterfaceAlias)"
+                        description = "No gateway configured - cannot reach internet or other networks | Current IP: $ipv4"
+                        recommendation = "1. Check router connection → 2. Run: ipconfig /release then ipconfig /renew → 3. Manually set gateway in adapter properties"
+                        interfaceName = $config.InterfaceAlias
+                        timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                    }
+                    $diagnostics.summary.high++
+                } else {
+                    # Test gateway reachability
+                    $gateway = $config.IPv4DefaultGateway.NextHop
+                    $pingGateway = Test-Connection -ComputerName $gateway -Count 2 -Quiet -ErrorAction SilentlyContinue
+                    if (-not $pingGateway) {
+                        $diagnostics.issues += @{
+                            category = "Network"
+                            severity = "Critical"
+                            title = "Cannot Reach Gateway: $gateway"
+                            description = "Gateway at $gateway is unreachable | Interface: $($config.InterfaceAlias) | This means router is not responding"
+                            recommendation = "1. Check router is powered on → 2. Check cable connection → 3. Restart router → 4. Check router lights"
+                            gateway = $gateway
+                            interfaceName = $config.InterfaceAlias
+                            timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                        }
+                        $diagnostics.summary.critical++
+                    }
+                }
+
+                # Check DNS servers
+                $dnsServers = $config.DNSServer.ServerAddresses
+                if ($dnsServers.Count -eq 0) {
+                    $diagnostics.issues += @{
+                        category = "Network"
+                        severity = "High"
+                        title = "No DNS Servers Configured: $($config.InterfaceAlias)"
+                        description = "Cannot resolve domain names without DNS | You won't be able to browse websites"
+                        recommendation = "Set DNS servers: 1. Control Panel → Network → Change adapter → Properties → IPv4 → Use: 8.8.8.8 and 8.8.4.4"
+                        interfaceName = $config.InterfaceAlias
+                        timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                    }
+                    $diagnostics.summary.high++
+                }
+            }
+        }
+
+        # Test Internet Connectivity (multiple methods)
+        $internetTest = Test-NetConnection -ComputerName "8.8.8.8" -InformationLevel Quiet -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
         if (-not $internetTest) {
             $diagnostics.issues += @{
                 category = "Network"
-                severity = "High"
+                severity = "Critical"
                 title = "No Internet Connectivity"
-                description = "Cannot reach external network (DNS: 8.8.8.8)"
-                recommendation = "Check router, modem, or network configuration"
+                description = "Cannot reach Google DNS (8.8.8.8) - No internet access | Ping test failed"
+                recommendation = "1. Check WiFi/Ethernet connected → 2. Restart router and modem → 3. Check if other devices have internet → 4. Contact ISP if problem persists"
                 timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
             }
-            $diagnostics.summary.high++
+            $diagnostics.summary.critical++
+        } else {
+            # Internet works but test DNS resolution
+            try {
+                $dnsTest = Resolve-DnsName "www.google.com" -ErrorAction Stop
+            } catch {
+                $diagnostics.issues += @{
+                    category = "Network"
+                    severity = "High"
+                    title = "DNS Resolution Failed"
+                    description = "Can ping 8.8.8.8 but cannot resolve www.google.com | DNS Error: $($_.Exception.Message)"
+                    recommendation = "1. Change DNS to 8.8.8.8 and 8.8.4.4 → 2. Flush DNS: ipconfig /flushdns → 3. Check router DNS settings"
+                    errorDetails = $_.Exception.Message
+                    timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                }
+                $diagnostics.summary.high++
+            }
         }
 
-        # Check DNS resolution
-        try {
-            $dnsTest = Resolve-DnsName "www.google.com" -ErrorAction Stop
-        } catch {
-            $diagnostics.issues += @{
-                category = "Network"
-                severity = "Medium"
-                title = "DNS Resolution Failed"
-                description = "Cannot resolve domain names - DNS may be misconfigured"
-                recommendation = "Check DNS settings or try using 8.8.8.8 as DNS server"
-                timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        # Check for duplicate IP addresses
+        $ipConflict = Get-NetIPAddress -ErrorAction SilentlyContinue | Group-Object -Property IPAddress | Where-Object { $_.Count -gt 1 }
+        if ($ipConflict) {
+            foreach ($conflict in $ipConflict) {
+                $diagnostics.issues += @{
+                    category = "Network"
+                    severity = "High"
+                    title = "IP Address Conflict Detected"
+                    description = "IP $($conflict.Name) is assigned to multiple adapters | This causes network problems"
+                    recommendation = "1. Release and renew IP: ipconfig /release then ipconfig /renew → 2. Use different IP → 3. Check for IP reservation in router"
+                    ipAddress = $conflict.Name
+                    timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                }
+                $diagnostics.summary.high++
             }
-            $diagnostics.summary.medium++
         }
+
+        # Check WiFi signal strength (if WiFi is active)
+        $wifiAdapters = Get-NetAdapter | Where-Object { $_.MediaType -match "802.11" -and $_.Status -eq "Up" }
+        foreach ($wifi in $wifiAdapters) {
+            try {
+                $wifiInfo = netsh wlan show interfaces | Select-String "Signal"
+                if ($wifiInfo -match "(\d+)%") {
+                    $signalStrength = [int]$matches[1]
+                    if ($signalStrength -lt 30) {
+                        $diagnostics.warnings += @{
+                            category = "Network"
+                            severity = "Medium"
+                            title = "Weak WiFi Signal: $($wifi.Name)"
+                            description = "Signal strength: $signalStrength% - Very weak signal causes slow speeds and disconnections"
+                            recommendation = "1. Move closer to router → 2. Remove obstacles between computer and router → 3. Check for interference → 4. Consider WiFi extender"
+                            signalStrength = $signalStrength
+                            timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                        }
+                        $diagnostics.summary.medium++
+                    }
+                }
+            } catch {}
+        }
+
     } catch {
         $diagnostics.warnings += @{
             category = "Network"
             severity = "Low"
             title = "Cannot Complete Network Diagnostics"
-            description = $_.Exception.Message
+            description = "Error: $($_.Exception.Message)"
             timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
         }
     }

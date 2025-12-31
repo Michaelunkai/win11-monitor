@@ -105,13 +105,22 @@ function Get-RecentEvents {
                 }
             }
 
-            # Get FULL message with details
+            # Get FULL message with ALL details (no truncation for critical errors)
             $messageText = if ($event.Message) {
-                $event.Message.Substring(0, [Math]::Min(500, $event.Message.Length))
+                # For critical events, show full message. For others, show more detail
+                if ($event.Level -eq 1) {
+                    $event.Message  # Full message for critical
+                } else {
+                    $event.Message.Substring(0, [Math]::Min(1000, $event.Message.Length))  # 1000 chars for errors
+                }
             } else {
                 "No message available"
             }
 
+            # Extract computer name
+            $computerName = if ($event.MachineName) { $event.MachineName } else { $env:COMPUTERNAME }
+
+            # Build detailed event object
             $events += @{
                 source = $event.LogName
                 category = $category
@@ -125,8 +134,13 @@ function Get-RecentEvents {
                 provider = $event.ProviderName
                 message = $messageText
                 details = $detailedInfo
+                computerName = $computerName
+                userId = $event.UserId
+                processId = $event.ProcessId
+                threadId = $event.ThreadId
                 timestamp = $event.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss")
                 timeAgo = (New-TimeSpan -Start $event.TimeCreated -End (Get-Date)).TotalHours
+                fullDetails = "Event ID: $($event.Id) | Source: $($event.ProviderName) | Time: $($event.TimeCreated) | Computer: $computerName"
             }
         }
     } catch {
@@ -157,31 +171,68 @@ function Get-RecentEvents {
                 $priority = "High"
             }
 
-            # Get FULL message with crash details
+            # Get FULL message with ALL crash details (no truncation)
             $messageText = if ($event.Message) {
                 $event.Message  # Full message for crash details
             } else {
                 "No message available"
             }
 
-            # Extract application name and fault module
+            # Extract EVERY detail from crash/error message
             $appName = ""
             $faultModule = ""
             $errorCode = ""
+            $appPath = ""
+            $appVersion = ""
+            $moduleVersion = ""
+            $faultOffset = ""
 
-            if ($event.Message -match "Faulting application name:\s*([^,]+)") {
+            # Extract application name
+            if ($event.Message -match "Faulting application name:\s*([^,\r\n]+)") {
                 $appName = $matches[1].Trim()
             } elseif ($event.Message -match "Application Name:\s*(\S+)") {
                 $appName = $matches[1]
             }
 
-            if ($event.Message -match "Faulting module name:\s*([^,]+)") {
+            # Extract application path
+            if ($event.Message -match "Faulting application path:\s*([^\r\n]+)") {
+                $appPath = $matches[1].Trim()
+            }
+
+            # Extract application version
+            if ($event.Message -match "Faulting application version:\s*([^\r\n]+)") {
+                $appVersion = $matches[1].Trim()
+            }
+
+            # Extract fault module name
+            if ($event.Message -match "Faulting module name:\s*([^,\r\n]+)") {
                 $faultModule = $matches[1].Trim()
             }
 
+            # Extract module version
+            if ($event.Message -match "Faulting module version:\s*([^\r\n]+)") {
+                $moduleVersion = $matches[1].Trim()
+            }
+
+            # Extract exception code
             if ($event.Message -match "Exception code:\s*(0x[0-9a-fA-F]+)") {
                 $errorCode = $matches[1]
             }
+
+            # Extract fault offset
+            if ($event.Message -match "Fault offset:\s*(0x[0-9a-fA-F]+)") {
+                $faultOffset = $matches[1]
+            }
+
+            # Build comprehensive details string
+            $crashDetails = ""
+            if ($appName) { $crashDetails += "App: $appName | " }
+            if ($appPath) { $crashDetails += "Path: $appPath | " }
+            if ($appVersion) { $crashDetails += "Version: $appVersion | " }
+            if ($faultModule) { $crashDetails += "Fault Module: $faultModule | " }
+            if ($moduleVersion) { $crashDetails += "Module Ver: $moduleVersion | " }
+            if ($errorCode) { $crashDetails += "Exception: $errorCode | " }
+            if ($faultOffset) { $crashDetails += "Offset: $faultOffset" }
 
             $events += @{
                 source = $event.LogName
@@ -196,8 +247,13 @@ function Get-RecentEvents {
                 provider = $event.ProviderName
                 message = $messageText
                 appName = $appName
+                appPath = $appPath
+                appVersion = $appVersion
                 faultModule = $faultModule
+                moduleVersion = $moduleVersion
                 errorCode = $errorCode
+                faultOffset = $faultOffset
+                crashDetails = $crashDetails
                 timestamp = $event.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss")
                 timeAgo = (New-TimeSpan -Start $event.TimeCreated -End (Get-Date)).TotalHours
             }
