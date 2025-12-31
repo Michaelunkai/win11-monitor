@@ -424,6 +424,233 @@ footer p {
     background: var(--accent-purple);
 }
 
+/* Diagnostics Styles */
+.diagnostics-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.summary-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    border: 2px solid var(--border-color);
+}
+
+.summary-item.critical {
+    border-color: #dc2626;
+}
+
+.summary-item.high {
+    border-color: var(--accent-red);
+}
+
+.summary-item.medium {
+    border-color: var(--accent-yellow);
+}
+
+.summary-item.low {
+    border-color: var(--accent-blue);
+}
+
+.summary-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.summary-count {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.diagnostics-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.diagnostic-item {
+    display: flex;
+    gap: 16px;
+    padding: 20px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    border-left: 4px solid var(--accent-blue);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.diagnostic-item:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.diagnostic-item.healthy {
+    border-left-color: var(--accent-green);
+    background: rgba(74, 222, 128, 0.1);
+}
+
+.diagnostic-item.severity-critical {
+    border-left-color: #dc2626;
+    background: rgba(220, 38, 38, 0.1);
+}
+
+.diagnostic-item.severity-high {
+    border-left-color: var(--accent-red);
+}
+
+.diagnostic-item.severity-medium {
+    border-left-color: var(--accent-yellow);
+}
+
+.diagnostic-item.severity-low {
+    border-left-color: var(--accent-blue);
+}
+
+.diagnostic-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.diagnostic-content {
+    flex: 1;
+}
+
+.diagnostic-header {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.diagnostic-severity {
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.diagnostic-severity.critical {
+    background: #dc2626;
+    color: white;
+}
+
+.diagnostic-severity.high {
+    background: var(--accent-red);
+    color: white;
+}
+
+.diagnostic-severity.medium {
+    background: var(--accent-yellow);
+    color: black;
+}
+
+.diagnostic-severity.low {
+    background: var(--accent-blue);
+    color: white;
+}
+
+.category-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+}
+
+.category-badge.category-windowsupdate {
+    background: rgba(74, 158, 255, 0.2);
+    color: var(--accent-blue);
+}
+
+.category-badge.category-driver {
+    background: rgba(251, 191, 36, 0.2);
+    color: var(--accent-yellow);
+}
+
+.category-badge.category-network {
+    background: rgba(74, 222, 128, 0.2);
+    color: var(--accent-green);
+}
+
+.category-badge.category-disk {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--accent-red);
+}
+
+.category-badge.category-service {
+    background: rgba(167, 139, 250, 0.2);
+    color: var(--accent-purple);
+}
+
+.category-badge.category-security {
+    background: rgba(220, 38, 38, 0.2);
+    color: #dc2626;
+}
+
+.category-badge.category-performance {
+    background: rgba(251, 191, 36, 0.2);
+    color: var(--accent-yellow);
+}
+
+.diagnostic-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.diagnostic-description {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 8px;
+}
+
+.diagnostic-recommendation {
+    padding: 12px;
+    background: var(--bg-primary);
+    border-radius: 6px;
+    color: var(--accent-blue);
+    font-size: 0.9rem;
+    margin-top: 12px;
+    border-left: 3px solid var(--accent-blue);
+}
+
+.diagnostic-footer {
+    margin-top: 12px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.event-category {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: var(--bg-primary);
+    color: var(--accent-blue);
+    margin-left: 8px;
+}
+
+.event-provider {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-style: italic;
+}
+
 @media (max-width: 768px) {
     .stats-grid {
         grid-template-columns: 1fr;
@@ -445,5 +672,17 @@ footer p {
 
     .stat-value {
         font-size: 2rem;
+    }
+
+    .diagnostics-summary {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .diagnostic-item {
+        flex-direction: column;
+    }
+
+    .diagnostic-icon {
+        font-size: 1.5rem;
     }
 }

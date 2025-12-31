@@ -16,6 +16,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Data storage
 let currentMetrics = {};
 let eventLogs = [];
+let systemDiagnostics = { issues: [], warnings: [], summary: { critical: 0, high: 0, medium: 0, low: 0 } };
 let metricsHistory = [];
 const MAX_HISTORY = 100;
 
@@ -208,6 +209,48 @@ async function collectEventLogs() {
     }
 }
 
+// Collect system diagnostics
+async function collectDiagnostics() {
+    if (DEMO_MODE) {
+        // Demo diagnostics data
+        systemDiagnostics = {
+            issues: [
+                {
+                    category: "WindowsUpdate",
+                    severity: "Medium",
+                    title: "Pending Windows Updates",
+                    description: "3 update(s) are pending installation",
+                    recommendation: "Install pending updates to ensure system security and stability",
+                    timestamp: new Date().toISOString()
+                }
+            ],
+            warnings: [],
+            summary: { critical: 0, high: 0, medium: 1, low: 0 },
+            totalIssues: 1,
+            timestamp: new Date().toISOString()
+        };
+        return systemDiagnostics;
+    }
+
+    try {
+        const diagnosticsScript = path.join(__dirname, 'scripts', 'collect-diagnostics.ps1');
+        const data = await executePowerShellScript(diagnosticsScript);
+
+        systemDiagnostics = data;
+
+        return data;
+    } catch (error) {
+        console.error('Error collecting diagnostics:', error);
+        return {
+            error: error.message,
+            issues: [],
+            warnings: [],
+            summary: { critical: 0, high: 0, medium: 0, low: 0 },
+            totalIssues: 0
+        };
+    }
+}
+
 // API Routes
 app.get('/api/metrics', async (req, res) => {
     const data = await collectMetrics();
@@ -216,6 +259,11 @@ app.get('/api/metrics', async (req, res) => {
 
 app.get('/api/eventlogs', async (req, res) => {
     const data = await collectEventLogs();
+    res.json(data);
+});
+
+app.get('/api/diagnostics', async (req, res) => {
+    const data = await collectDiagnostics();
     res.json(data);
 });
 
@@ -231,18 +279,21 @@ app.get('/api/status', (req, res) => {
         status: 'online',
         timestamp: new Date().toISOString(),
         platform: process.platform,
-        nodeVersion: process.version
+        nodeVersion: process.version,
+        demoMode: DEMO_MODE
     });
 });
 
 // Start HTTP server
 const server = app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Mode: ${DEMO_MODE ? 'DEMO' : 'PRODUCTION (Windows)'}`);
     console.log('Starting periodic data collection...');
 
     // Initial data collection
     collectMetrics();
     collectEventLogs();
+    collectDiagnostics();
 });
 
 // WebSocket Server
@@ -260,6 +311,11 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({
         type: 'eventlogs',
         data: { events: eventLogs }
+    }));
+
+    ws.send(JSON.stringify({
+        type: 'diagnostics',
+        data: systemDiagnostics
     }));
 
     ws.on('close', () => {
@@ -286,6 +342,11 @@ setInterval(async () => {
     const logs = await collectEventLogs();
     broadcastToClients('eventlogs', logs);
 }, 10000); // Every 10 seconds
+
+setInterval(async () => {
+    const diagnostics = await collectDiagnostics();
+    broadcastToClients('diagnostics', diagnostics);
+}, 30000); // Every 30 seconds
 
 // Graceful shutdown
 process.on('SIGINT', () => {

@@ -24,6 +24,8 @@ function connectWebSocket() {
             updateMetrics(message.data);
         } else if (message.type === 'eventlogs') {
             updateEventLogs(message.data);
+        } else if (message.type === 'diagnostics') {
+            updateDiagnostics(message.data);
         }
     };
 
@@ -265,20 +267,99 @@ function filterAndDisplayEvents() {
         const eventItem = document.createElement('div');
         eventItem.className = `event-item ${event.level}`;
 
+        // Build category badge if available
+        const categoryBadge = event.category ? `<span class="event-category">${event.category}</span>` : '';
+        const provider = event.provider ? `<span class="event-provider">${event.provider}</span>` : '';
+
         eventItem.innerHTML = `
             <div class="event-header">
                 <span class="event-level ${event.level}">${event.level}</span>
+                ${categoryBadge}
                 <span class="event-source">${event.source}</span>
             </div>
             <div class="event-message">${event.message}</div>
             <div class="event-footer">
                 <span>Event ID: ${event.id}</span>
+                ${provider}
                 <span>${event.timestamp}</span>
             </div>
         `;
 
         eventLogsList.appendChild(eventItem);
     });
+}
+
+// Update system diagnostics
+function updateDiagnostics(data) {
+    if (!data) return;
+
+    // Update summary counts
+    if (data.summary) {
+        document.getElementById('criticalCount').textContent = data.summary.critical || 0;
+        document.getElementById('highCount').textContent = data.summary.high || 0;
+        document.getElementById('mediumCount').textContent = data.summary.medium || 0;
+        document.getElementById('lowCount').textContent = data.summary.low || 0;
+    }
+
+    // Display issues and warnings
+    const diagnosticsIssues = document.getElementById('diagnosticsIssues');
+    diagnosticsIssues.innerHTML = '';
+
+    const allIssues = [...(data.issues || []), ...(data.warnings || [])];
+
+    if (allIssues.length === 0) {
+        diagnosticsIssues.innerHTML = `
+            <div class="diagnostic-item healthy">
+                <div class="diagnostic-icon">✅</div>
+                <div class="diagnostic-content">
+                    <div class="diagnostic-title">System Healthy</div>
+                    <div class="diagnostic-description">No issues detected. Your system is running smoothly.</div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    // Sort by severity
+    const severityOrder = { 'Critical': 0, 'High': 1, 'Medium': 2, 'Low': 3 };
+    allIssues.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+    allIssues.forEach(issue => {
+        const diagnosticItem = document.createElement('div');
+        diagnosticItem.className = `diagnostic-item severity-${issue.severity.toLowerCase()}`;
+
+        const icon = getSeverityIcon(issue.severity);
+        const categoryBadge = `<span class="category-badge category-${issue.category.toLowerCase()}">${issue.category}</span>`;
+
+        diagnosticItem.innerHTML = `
+            <div class="diagnostic-icon">${icon}</div>
+            <div class="diagnostic-content">
+                <div class="diagnostic-header">
+                    <span class="diagnostic-severity ${issue.severity.toLowerCase()}">${issue.severity}</span>
+                    ${categoryBadge}
+                </div>
+                <div class="diagnostic-title">${issue.title}</div>
+                <div class="diagnostic-description">${issue.description}</div>
+                ${issue.recommendation ? `<div class="diagnostic-recommendation">💡 ${issue.recommendation}</div>` : ''}
+                <div class="diagnostic-footer">
+                    <span>${new Date(issue.timestamp).toLocaleString()}</span>
+                </div>
+            </div>
+        `;
+
+        diagnosticsIssues.appendChild(diagnosticItem);
+    });
+}
+
+// Get severity icon
+function getSeverityIcon(severity) {
+    switch (severity.toLowerCase()) {
+        case 'critical': return '🔴';
+        case 'high': return '🟠';
+        case 'medium': return '🟡';
+        case 'low': return '🔵';
+        default: return 'ℹ️';
+    }
 }
 
 // Set up event log filters
@@ -316,6 +397,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(res => res.json())
                 .then(data => updateEventLogs(data))
                 .catch(err => console.error('Error fetching event logs:', err));
+
+            fetch('/api/diagnostics')
+                .then(res => res.json())
+                .then(data => updateDiagnostics(data))
+                .catch(err => console.error('Error fetching diagnostics:', err));
         }
     }, 5000);
 });

@@ -46,14 +46,37 @@ All platforms offer 100% free hosting with permanent URLs, automatic HTTPS, and 
 
 ## Features
 
-- **Real-time CPU Monitoring** - Live CPU usage with historical charts
-- **Memory Tracking** - RAM usage statistics with visualization
-- **Disk Usage** - Monitor all drives with usage percentages
-- **Network Activity** - Track network adapter statistics
-- **Process Monitoring** - View top processes by CPU and memory
-- **Event Logs** - Real-time system and application event logs with filtering
-- **WebSocket Support** - Live updates every 3 seconds
+### 🎯 Real-Time System Monitoring
+- **Enhanced CPU Monitoring** - Multi-sample averaging for accurate CPU usage with historical charts
+- **Advanced Memory Tracking** - Physical, available, and committed memory with detailed statistics
+- **Disk Health Monitoring** - Drive usage, SMART status, and disk activity tracking
+- **Network Diagnostics** - Live adapter status, link speed, and bandwidth monitoring
+- **GPU Information** - Graphics card details and usage (when available)
+- **Battery Status** - Laptop battery level and charging state
+- **Temperature Monitoring** - CPU temperature tracking (when available)
+- **Process Analysis** - Real-time CPU percentage per process (not just cumulative time)
+
+### 🔍 Comprehensive System Diagnostics
+- **Windows Update Detection** - Pending updates, failed installations, and service status
+- **Driver Problem Detection** - Automatic detection of Device Manager errors with error codes
+- **Network Connectivity Checks** - Internet connectivity, DNS resolution, and adapter status
+- **Disk Health Analysis** - SMART data, low space warnings, and physical disk health
+- **Critical Service Monitoring** - Windows services status and failure detection
+- **Security Status** - Windows Defender status and outdated definitions alerts
+- **Performance Alerts** - High CPU/memory usage and temperature warnings
+
+### 📝 Enhanced Event Logging
+- **Categorized Events** - Events grouped by type (Disk, Network, Driver, Service, etc.)
+- **Priority-Based Filtering** - Critical events highlighted and prioritized
+- **Actionable Error Logs** - Focus on real problems that need fixing
+- **Security Events** - Failed login attempts and security policy changes
+- **Application Crash Detection** - Identify and log application failures
+
+### 🎨 User Interface
+- **WebSocket Support** - Live updates every 3 seconds (metrics), 10 seconds (logs), 30 seconds (diagnostics)
 - **Dark Theme UI** - Modern, responsive design
+- **Interactive Diagnostics** - Color-coded severity levels with recommendations
+- **Real-time Charts** - Historical data visualization
 
 ## Technology Stack
 
@@ -98,40 +121,55 @@ http://localhost:3000
 
 ```
 win11-monitor/
-├── server.js               # Main Node.js server with WebSocket
-├── package.json            # Dependencies and scripts
-├── public/                 # Frontend files
-│   ├── index.html         # Main dashboard UI
-│   ├── style.css          # Modern dark theme styling
-│   └── app.js             # Real-time dashboard logic
-├── scripts/               # PowerShell data collectors
-│   ├── collect-metrics.ps1    # System metrics collector
-│   └── collect-eventlogs.ps1  # Event log collector
-└── data/                  # Runtime data storage (auto-created)
+├── server.js                      # Main Node.js server with WebSocket
+├── package.json                   # Dependencies and scripts
+├── public/                        # Frontend files
+│   ├── index.html                # Enhanced dashboard UI with diagnostics
+│   ├── style.css                 # Modern dark theme with diagnostic styling
+│   └── app.js                    # Real-time dashboard with health monitoring
+├── scripts/                       # PowerShell data collectors
+│   ├── collect-metrics.ps1       # Enhanced metrics (CPU, Memory, GPU, Battery, etc.)
+│   ├── collect-eventlogs.ps1     # Categorized and prioritized event logs
+│   └── collect-diagnostics.ps1   # Comprehensive system health diagnostics
+└── data/                          # Runtime data storage (auto-created)
 ```
 
 ## API Endpoints
 
-- `GET /api/metrics` - Current system metrics
-- `GET /api/eventlogs` - Recent event logs
+- `GET /api/metrics` - Enhanced system metrics (CPU, Memory, Disk, Network, GPU, Battery, Temperature)
+- `GET /api/eventlogs` - Categorized and prioritized event logs
+- `GET /api/diagnostics` - Comprehensive system health diagnostics
 - `GET /api/history` - Historical metrics data
-- `GET /api/status` - Server status
-- `WebSocket /` - Real-time data streaming
+- `GET /api/status` - Server status and mode information
+- `WebSocket /` - Real-time data streaming for all metrics
 
 ## Data Collection
 
-### Metrics Collected (Every 3 seconds)
-- CPU usage percentage
-- Memory (total, used, free, percentage)
-- Disk usage for all drives
-- Network adapter statistics
-- Top 10 processes by CPU
-- System uptime
+### Enhanced Metrics (Every 3 seconds)
+- **CPU**: Multi-sample average usage, core count, clock speeds, temperature
+- **Memory**: Physical, available, committed memory with accurate percentages
+- **Disk**: All drives with labels, usage, free space, and real-time activity
+- **Network**: Active adapters with status, link speed, and bandwidth
+- **GPU**: Graphics card info, driver version, and usage
+- **Battery**: Charge level, charging status, estimated runtime
+- **Processes**: Top 10 by actual CPU percentage (not cumulative time)
+- **System**: Uptime, OS info, temperature sensors
 
-### Event Logs Collected (Every 10 seconds)
-- System errors and warnings
-- Application errors and warnings
-- Recent 30 events with filtering
+### Comprehensive Diagnostics (Every 30 seconds)
+- **Windows Updates**: Pending, failed, and required updates
+- **Device Drivers**: Problem devices with specific error codes and descriptions
+- **Network Issues**: Connectivity problems, disconnected adapters, DNS failures
+- **Disk Health**: Low space warnings, SMART status, physical disk errors
+- **Services**: Critical Windows services status and failures
+- **Security**: Windows Defender status, outdated virus definitions
+- **Performance**: High resource usage, temperature warnings
+
+### Enhanced Event Logs (Every 10 seconds)
+- **System Events**: Critical errors, service failures, unexpected shutdowns
+- **Application Events**: Crashes, hangs, and errors with application names
+- **Security Events**: Failed logins, account lockouts
+- **Categorized Logs**: Disk, Network, Driver, Service, WindowsUpdate
+- **Priority Levels**: Critical, High, Medium, Low with smart filtering
 
 ## Deployment
 
@@ -189,7 +227,18 @@ PORT=3000 npm start
 ### Data Refresh Rates
 - Metrics: 3 seconds
 - Event Logs: 10 seconds
+- System Diagnostics: 30 seconds
 - Chart History: 100 data points
+
+### Diagnostic Categories
+The system monitors and reports issues in these categories:
+- **WindowsUpdate**: Pending updates, failures, service status
+- **Driver**: Device problems with error codes
+- **Network**: Connectivity and adapter issues
+- **Disk**: Space warnings and health status
+- **Service**: Critical Windows services
+- **Security**: Defender status and threats
+- **Performance**: Resource usage and temperature
 
 ## Browser Compatibility
 
